@@ -3,7 +3,7 @@
 from pathlib import Path
 import json
 import cv2
-
+import operator
 
 def convert_object(path= Path('.'), filename="objects.json"):
     densecap_file = path / filename
@@ -11,12 +11,12 @@ def convert_object(path= Path('.'), filename="objects.json"):
     id_to_object_file = path / "yolo_object_to_id"
     object_to_id = {}
     object_id=0
-    with open(densecap_file, 'r') as df:
-        with open(yolo_file, 'w+') as yf:
+    with open(str(densecap_file), 'r') as df:
+        with open(str(yolo_file), 'w+') as yf:
             data = json.load(df)
             for image in data:
                 image_id = image["image_id"]
-                image_objects = '{}'.format(image_id)
+                image_annotation = '/home/dtrimoul/Visual_Genome/images/VG_100K/{}.jpg'.format(image_id)
                 for image_object in image["objects"]:
                     cur_object_id = 0
                     x_min = image_object["x"]
@@ -31,26 +31,28 @@ def convert_object(path= Path('.'), filename="objects.json"):
                     else:
                         cur_object_id = object_to_id[object_name]
                     object_string = '{},{},{},{},{}'.format(x_min, y_min, x_max, y_max, cur_object_id)
-                    image_objects = '{} {}'.format(image_objects, object_string)
-                image_objects = '{}\n'.format(image_objects)
-                yf.write(image_objects)
-    with open(id_to_object_file, 'w+') as itof:
-        for key, value in object_to_id.items():
-            itof.write('{};{}\n'.format(key, value))
+                    image_annotation = '{} {}'.format(image_annotation, object_string)
+                image_annotation = '{}\n'.format(image_annotation)
+                yf.write(image_annotation)
+
+    object_to_id_list = ["" for i in range(0, len(object_to_id))]
+    for key, value in object_to_id.items():
+        object_to_id_list[value] = key
+
+    with open(str(id_to_object_file), 'w+') as itof:
+        for object_name in object_to_id_list:
+            itof.write('{}\n'.format(object_name))
 
 
 def display_image_bb(path= Path('.'), filename="yolo_objects", id_mapping="yolo_object_to_id"):
     yolo_file = path / filename
     id_mapping_file = path / id_mapping
-    id_to_object = {}
-    with open(id_mapping_file, 'r') as m:
+    id_to_object = []
+    with open(str(id_mapping_file), 'r') as m:
         for line in m:
-            data = line.split(';')
-            if len(data) > 2 :
-                print(data)
-            id_to_object[data[1].rstrip()] = data[0]
+            id_to_object.append(line)
     #print(id_to_object)
-    with open(yolo_file, 'r') as f:
+    with open(str(yolo_file), 'r') as f:
         data = f.readline()
         data = data.split()
         image_file = path / "images" / "VG_100K" / '{}.jpg'.format(data[0])
@@ -59,7 +61,7 @@ def display_image_bb(path= Path('.'), filename="yolo_objects", id_mapping="yolo_
         for i in range(1, len(data)):
             object = data[i].split(',')
             cv2.rectangle(img, (int(object[0]), int(object[1])), (int(object[2]), int(object[3])), (0, 255, 0), 5)
-            cv2.putText(img, id_to_object[object[4]], (int(object[0]), int(object[1]) + 10), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(img, id_to_object[int(object[4])], (int(object[0]), int(object[1]) + 10), cv2.FONT_HERSHEY_COMPLEX_SMALL, 1, (255, 255, 255), 2, cv2.LINE_AA)
         cv2.imshow('image', img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()

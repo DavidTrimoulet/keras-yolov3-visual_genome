@@ -8,7 +8,7 @@ class TestVisualGenomeTools(TestCase):
     def test_convert_object(self):
         p = Path('.')
         p = p / ".." / ".." / "Visual_Genome"
-        visual_genome_tools.convert_object( p.absolute() , "objects.json" )
+        visual_genome_tools.convert_object( p.absolute(), "objects.json" )
 
     def test_image_concerter_santiy_check(self):
         p = Path('.')
