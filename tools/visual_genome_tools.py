@@ -3,7 +3,7 @@
 from pathlib import Path
 import json
 import cv2
-import operator
+
 
 def convert_object(path= Path('.'), filename="objects.json"):
     densecap_file = path / filename
