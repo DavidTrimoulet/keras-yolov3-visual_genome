@@ -16,7 +16,8 @@ def convert_object_for_yolo_v3(path= Path('.'), filename="objects.json"):
             data = json.load(df)
             for image in data:
                 image_id = image["image_id"]
-                image_annotation = '/home/dtrimoul/Visual_Genome/images/VG_100K/{}.jpg'.format(image_id)
+                images_path = path / "images" / "VG_100K"
+                image_annotation = '{}/{}.jpg'.format(images_path, image_id)
                 for image_object in image["objects"]:
                     cur_object_id = 0
                     x_min = image_object["x"]
