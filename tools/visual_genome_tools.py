@@ -5,7 +5,7 @@ import json
 import cv2
 
 
-def convert_object(path= Path('.'), filename="objects.json"):
+def convert_object_for_yolo_v3(path= Path('.'), filename="objects.json"):
     densecap_file = path / filename
     yolo_file = path / "yolo_objects"
     id_to_object_file = path / "yolo_object_to_id"
@@ -43,6 +43,43 @@ def convert_object(path= Path('.'), filename="objects.json"):
         for object_name in object_to_id_list:
             itof.write('{}\n'.format(object_name))
 
+def convert_object_for_retina(path= Path('.'), filename="objects.json"):
+    densecap_file = path / filename
+    yolo_file = path / "retina_objects"
+    id_to_object_file = path / "retina_object_to_id"
+    object_to_id = {}
+    object_id=0
+    with open(str(densecap_file), 'r') as df:
+        with open(str(yolo_file), 'w+') as yf:
+            data = json.load(df)
+            for image in data:
+                image_id = image["image_id"]
+                image_path = path / 'images/VG_100K/{}.jpg'.format(image_id)
+                for image_object in image["objects"]:
+                    cur_object_id = 0
+                    x_min = image_object["x"]
+                    y_min = image_object["y"]
+                    x_max = image_object["x"] + image_object["w"]
+                    y_max = image_object["y"] + image_object["h"]
+                    if y_min >= y_max:
+                        y_max = y_min + 1
+                    if x_min >= x_max:
+                        x_max = x_min + 1
+                    object_name = image_object["names"][0].replace(' ', '_').replace('\'', '').replace('\"', '').replace(',', '').replace('\0', '')
+                    if object_name not in object_to_id:
+                        object_to_id[object_name] = object_id
+                        cur_object_id = object_id
+                        object_id += 1
+                    else:
+                        cur_object_id = object_to_id[object_name]
+                    object_string = '{},{},{},{},{}'.format(x_min, y_min, x_max, y_max, object_name)
+                    image_annotation = '{},{}'.format(image_path, object_string)
+                    image_annotation = '{}\n'.format(image_annotation)
+                    yf.write(image_annotation)
+
+    with open(str(id_to_object_file), 'w+') as itof:
+        for key, value in object_to_id.items():
+            itof.write('{},{}\n'.format(str(key), str(value)))
 
 def display_image_bb(path= Path('.'), filename="yolo_objects", id_mapping="yolo_object_to_id"):
     yolo_file = path / filename
