@@ -12,7 +12,6 @@ mock==3.0.5
 numpy==1.16.4
 opencv-python==4.1.0.25
 Pillow==6.0.0
-pkg-resources==0.0.0
 progressbar2==3.42.0
 protobuf==3.8.0
 python-utils==2.3.0
