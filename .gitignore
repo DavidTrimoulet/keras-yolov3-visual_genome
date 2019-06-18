@@ -1,6 +1,7 @@
 #PyCharm Files
 .idea/
-
+venv/
+share/
 #Network weights
 *.weights
 *.h5
