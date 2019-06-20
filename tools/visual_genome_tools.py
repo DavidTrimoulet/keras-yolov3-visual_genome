@@ -31,9 +31,11 @@ class VisualGenomeTools:
             dataset_vocab = self.remove_not_in_glove_words(dataset_vocab)
             dataset_vocab = self.remove_less_used_words(dataset_vocab)
             dataset_vocab = self.remove_single_character_from_vocab(dataset_vocab)
-            dataset_vocab = self.remove_plural(dataset_vocab)
+            #dataset_vocab = self.remove_plural(dataset_vocab)
             clean_data = self.clean_dataset_with_dataset_vocab(data, dataset_vocab)
             #clean_data = self.split_vocabulary(clean_data, dataset_vocab)
+            print("final vocab word count:", dataset_vocab)
+            print(len(clean_data))
         with open(str(vg_clean_file), 'w+') as vgf:
             json.dump(clean_data, vgf)
         with open(str(vg_clean_vocab), 'w+') as vgf:
@@ -57,7 +59,7 @@ class VisualGenomeTools:
         print("len dataset vocab before reduction of less used word :", len(dataset_vocab))
         new_dataset_vocab = {}
         for vocab in dataset_vocab:
-            if dataset_vocab[vocab][1] > thresold:
+            if dataset_vocab[vocab] > thresold:
                 new_dataset_vocab[vocab] = dataset_vocab[vocab]
         print("len dataset vocab after reduction of less used word :", len(new_dataset_vocab))
         return new_dataset_vocab
@@ -94,20 +96,21 @@ class VisualGenomeTools:
                 # print(image_object["names"][0])
                 words = text.split(" ")
                 clean_words = ""
+                #print(words)
                 for word in words:
                     if word in dataset_vocab:
                         clean_words += word
-                    if clean_words != "":
-                        updated_image_object["names"] = clean_words
-                        updated_image["objects"].append(updated_image_object)
+                    #else :
+                        #print("word not in vocab:", word)
+                    updated_image_object["names"] = clean_words
+                    updated_image["objects"].append(updated_image_object)
             data_with_dataset_vocab.append(updated_image)
 
         return data_with_dataset_vocab
 
     def generate_dataset_vocab(self, data):
-        #Dictionnary with { word : (id, occurence) }
+        #Dictionnary with { word :  occurence }
         dataset_vocab = {}
-        object_id = 0
         for image in data:
             # print(image)
             for image_object in image["objects"]:
@@ -116,14 +119,10 @@ class VisualGenomeTools:
                 for word in words:
                     if word in dataset_vocab:
                         # si le mot est déjà dans le vocabulaire, on increment l'occurence
-                        (cur_object_id, occurence) = dataset_vocab[word]
-                        occurence += 1
-                        dataset_vocab[word] = (cur_object_id, occurence)
+                        dataset_vocab[word] += 1
                     else:
                         # si le mot n'est pas dans le vocabulaire
-                        dataset_vocab[word] = (object_id, 1)
-                        cur_object_id = object_id
-                        object_id += 1
+                        dataset_vocab[word] = 1
         return dataset_vocab
 
     def split_vocabulary(self, data, dataset_vocab):
@@ -169,64 +168,41 @@ class VisualGenomeTools:
         return clean_data
 
     def convert_object_for_yolo_v3(self, filename="objects.json"):
-        glove_vocab = self.load_glove()
         vg_file = self.path / filename
         yolo_file = self.path / "yolo_objects"
         id_to_object_file = self.path / "yolo_object_to_id"
         dataset_vocab = {}
-        object_id=0
-        pairs = 0
+        object_id = 0
         with open(str(vg_file), 'r') as vgf:
             with open(str(yolo_file), 'w+') as yf:
                 data = json.load(vgf)
-                image_count = 0
                 for image in data:
-                    image_count += 1
-                    if image_count < 500000 :
-                        image_id = image["image_id"]
-                        images_path = self.path / "images" / "VG_100K"
-                        image_annotation = '{}/{}.jpg'.format(images_path, image_id)
-                        for image_object in image["objects"]:
-                            x_min = image_object["x"]
-                            y_min = image_object["y"]
-                            x_max = image_object["x"] + image_object["w"]
-                            y_max = image_object["y"] + image_object["h"]
-                            words = image_object["names"][0].split(" ")
-                            for word in words:
-                                if word in glove_vocab:
-                                    if word in dataset_vocab:
-                                        # si le mot est déjà dans le vocabulaire, on increment l'occurence
-                                        (cur_object_id, occurence) = dataset_vocab[word]
-                                        occurence += 1
-                                        dataset_vocab[word] = (cur_object_id, occurence)
-                                    else:
-                                        # si le mot n'est pas dans le vocabulaire
-                                        dataset_vocab[word] = (object_id, 1)
-                                        cur_object_id = object_id
-                                        object_id += 1
-                                    object_string = '{},{},{},{},{}'.format(x_min, y_min, x_max, y_max, cur_object_id)
-                                    image_annotation = '{} {}'.format(image_annotation, object_string)
-                        image_annotation = '{}\n'.format(image_annotation)
-                        yf.write(image_annotation)
-        print(len(dataset_vocab))
-        object_to_id_list = ["" for i in range(0, len(dataset_vocab))]
-        single_words = 0
-        short_words = 0
-        for key, value in dataset_vocab.items():
-            if value[1] < 6:
-                print(key, " : ", value[1])
-                single_words += 1
+                    image_id = image["image_id"]
+                    images_path = self.path / "images" / "VG_100K"
+                    image_annotation = '{}/{}.jpg'.format(images_path, image_id)
+                    for image_object in image["objects"]:
+                        x_min = image_object["x"]
+                        y_min = image_object["y"]
+                        x_max = image_object["x"] + image_object["w"]
+                        y_max = image_object["y"] + image_object["h"]
+                        words = image_object["names"].split(" ")
+                        for word in words:
+                            # si le mot est déjà dans le vocabulaire, on increment l'occurence
+                            if word in dataset_vocab:
+                                cur_object_id = dataset_vocab[word]
+                            else:
+                                # si le mot n'est pas dans le vocabulaire
+                                dataset_vocab[word] = object_id
+                                cur_object_id = object_id
+                                object_id += 1
+                            object_string = '{},{},{},{},{}'.format(x_min, y_min, x_max, y_max, cur_object_id)
+                            image_annotation = '{} {}'.format(image_annotation, object_string)
+                image_annotation = '{}\n'.format(image_annotation)
+                yf.write(image_annotation)
 
-            object_to_id_list[value[0]] = key
-        print("Number of few occurent word: ", single_words)
-
-        for key, value in dataset_vocab.items():
-            if len(key) < 3:
-                print(key)
-                short_words +=1
-        print("Number of less than 3 characters words: ", short_words)
+        print("final vocab length :", len(dataset_vocab))
         with open(str(id_to_object_file), 'w+') as itof:
-            for object_name in object_to_id_list:
+            for object_name in dataset_vocab:
                 itof.write('{}\n'.format(object_name))
 
     def convert_object_for_retina(self, filename="objects.json"):

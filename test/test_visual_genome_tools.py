@@ -15,7 +15,7 @@ class TestVisualGenomeTools(TestCase):
         p = Path('.')
         p = p / ".." / ".." / "Visual_Genome"
         vgt = visual_genome_tools.VisualGenomeTools(path_to_visual_genome_folder=p)
-        visual_genome_tools.convert_object_for_retina("clean_objects.json")
+        vgt.convert_object_for_retina("clean_objects.json")
 
     def test_image_converter_sanity_check(self):
         p = Path('.')
