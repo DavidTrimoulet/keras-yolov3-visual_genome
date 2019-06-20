@@ -21,60 +21,155 @@ class VisualGenomeTools:
     def clean_visual_genome_data(self, filename="objects.json"):
         vg_file = self.path / filename
         vg_clean_file = self.path / "clean_objects.json"
+        vg_clean_vocab = self.path / "vg_vocab"
         clean_data = []
-        dataset_vocab = {}
-        object_id=0
+        #Dictionnary with { word : (id, occurence) }
         with open(str(vg_file), 'r') as vgf:
             data = json.load(vgf)
-            for image in data:
-                #print(image)
-                updated_image = image.copy()
-                updated_image["objects"] = []
-                for image_object in image["objects"]:
-                    #print(image_object)
-                    updated_image_object = image_object.copy()
-                    text = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower())
-                    #print(image_object["names"][0])
-                    words = text.split(" ")
-                    updated_image_object["names"] = words
-                    for word in words:
-                        if word in dataset_vocab:
-                        #si le mot est déjà dans le vocabulaire, on increment l'occurence
-                            (cur_object_id, occurence) = dataset_vocab[word]
-                            occurence += 1
-                            dataset_vocab[word] = (cur_object_id, occurence)
-                        else:
-                        # si le mot n'est pas dans le vocabulaire
-                            dataset_vocab[word] = (object_id, 1)
-                            cur_object_id = object_id
-                            object_id += 1
-                    updated_image["objects"].append(updated_image_object)
-                clean_data.append(updated_image)
-            for image in clean_data:
-                #print(image)
-                updated_image = image.copy()
-                updated_image["objects"] = []
-                for image_object in image["objects"]:
-                    #print(image_object)
-                    updated_image_object = image_object.copy()
-                    text = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower())
-                    #print(image_object["names"][0])
-                    words = text.split(" ")
-                    isSplitted = False
-                    for word in words:
-                        for vocab_word in dataset_vocab.items():
-                            if vocab_word != word and vocab_word in word :
-                                isSplitted = True
-
-                            #check if is composed of
-
-                    updated_image_object["names"] = words
-                    updated_image["objects"].append(updated_image_object)
-                clean_data.append(updated_image)
+            print(len(data))
+            dataset_vocab = self.generate_dataset_vocab(data)
+            dataset_vocab = self.remove_not_in_glove_words(dataset_vocab)
+            dataset_vocab = self.remove_less_used_words(dataset_vocab)
+            dataset_vocab = self.remove_single_character_from_vocab(dataset_vocab)
+            dataset_vocab = self.remove_plural(dataset_vocab)
+            clean_data = self.clean_dataset_with_dataset_vocab(data, dataset_vocab)
+            #clean_data = self.split_vocabulary(clean_data, dataset_vocab)
         with open(str(vg_clean_file), 'w+') as vgf:
             json.dump(clean_data, vgf)
+        with open(str(vg_clean_vocab), 'w+') as vgf:
+            json.dump(dataset_vocab, vgf)
+
+    def remove_plural(self, dataset_vocab):
+        print("len dataset vocab before reduction of plural words :", len(dataset_vocab))
+        new_dataset_vocab = {}
+        for vocab in dataset_vocab:
+            if vocab[-1] == 's':
+                if vocab[0:-1] not in dataset_vocab.keys():
+                    if vocab[-2] == 'e' and vocab[0:-2] not in dataset_vocab.keys():
+                        #print(vocab, "seems to not be a plural")
+                        new_dataset_vocab[vocab] = dataset_vocab[vocab]
+            else :
+                new_dataset_vocab[vocab] = dataset_vocab[vocab]
+        print("len dataset vocab after reduction of plural words :", len(new_dataset_vocab))
+        return new_dataset_vocab
+
+    def remove_less_used_words(self, dataset_vocab, thresold=5):
+        print("len dataset vocab before reduction of less used word :", len(dataset_vocab))
+        new_dataset_vocab = {}
+        for vocab in dataset_vocab:
+            if dataset_vocab[vocab][1] > thresold:
+                new_dataset_vocab[vocab] = dataset_vocab[vocab]
+        print("len dataset vocab after reduction of less used word :", len(new_dataset_vocab))
+        return new_dataset_vocab
+
+    def remove_single_character_from_vocab(self, dataset_vocab):
+        print("len dataset vocab before reduction :", len(dataset_vocab))
+        new_dataset_vocab = {}
+        for vocab in dataset_vocab:
+            if len(vocab) > 2:
+                new_dataset_vocab[vocab] = dataset_vocab[vocab]
+        print("len dataset vocab after reduction :", len(new_dataset_vocab))
+        return new_dataset_vocab
+
+    def remove_not_in_glove_words(self, dataset_vocab):
+        print("len dataset vocab before reduction with glove vocab :", len(dataset_vocab))
+        new_dataset_vocab = {}
+        glove_vocab = self.load_glove()
+        for vocab in dataset_vocab:
+            if vocab in glove_vocab:
+                new_dataset_vocab[vocab] = dataset_vocab[vocab]
+        print("len dataset vocab after reduction with glove vocab  :", len(new_dataset_vocab))
+        return new_dataset_vocab
+
+    def clean_dataset_with_dataset_vocab(self, data, dataset_vocab):
+        data_with_dataset_vocab = []
+        for image in data:
+            # print(image)
+            updated_image = image.copy()
+            updated_image["objects"] = []
+            for image_object in image["objects"]:
+                # print(image_object)
+                updated_image_object = image_object.copy()
+                text = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower())
+                # print(image_object["names"][0])
+                words = text.split(" ")
+                clean_words = ""
+                for word in words:
+                    if word in dataset_vocab:
+                        clean_words += word
+                    if clean_words != "":
+                        updated_image_object["names"] = clean_words
+                        updated_image["objects"].append(updated_image_object)
+            data_with_dataset_vocab.append(updated_image)
+
+        return data_with_dataset_vocab
+
+    def generate_dataset_vocab(self, data):
+        #Dictionnary with { word : (id, occurence) }
+        dataset_vocab = {}
+        object_id = 0
+        for image in data:
+            # print(image)
+            for image_object in image["objects"]:
+                text = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower())
+                words = text.split(" ")
+                for word in words:
+                    if word in dataset_vocab:
+                        # si le mot est déjà dans le vocabulaire, on increment l'occurence
+                        (cur_object_id, occurence) = dataset_vocab[word]
+                        occurence += 1
+                        dataset_vocab[word] = (cur_object_id, occurence)
+                    else:
+                        # si le mot n'est pas dans le vocabulaire
+                        dataset_vocab[word] = (object_id, 1)
+                        cur_object_id = object_id
+                        object_id += 1
+        return dataset_vocab
+
+    def split_vocabulary(self, data, dataset_vocab):
+        clean_data = []
+        for image in data:
+            # print(image)
+            updated_image = image.copy()
+            updated_image["objects"] = []
+            for image_object in image["objects"]:
+                print("new image")
+                # print(image_object)
+                updated_image_object = image_object.copy()
+                text = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower())
+                # print(image_object["names"][0])
+                words = text.split(" ")
+                new_words = []
+                for word in words:
+                    cur_splitting = [word]
+                    is_splitted = True
+                    # tant qu'on a subdivisé le mot
+                    while (is_splitted):
+                        #print(cur_splitting)
+                        is_splitted = False
+                        # pour tous les mot du vocabulaire
+                        #print(len(dataset_vocab.keys()))
+                        for vocab_word in dataset_vocab.keys():
+                            #print(" vocab_word: ", vocab_word)
+                            next_split = []
+                            # pour tous les mot du découpage en cours
+                            for split in cur_splitting:
+                                #print("split:", split)
+                                # si le découpage en cours contient un mot du vocabulaire
+                                if vocab_word != split and vocab_word in split:
+                                    print("Split and vocab word is:", vocab_word)
+                                    next_split.append(split.replace(vocab_word, ''))
+                                    next_split.append(vocab_word)
+                        # check if is composed of
+                    new_words += cur_splitting
+                print("previous word :", word, ", splitted words:", new_words)
+                updated_image_object["names"] = new_words
+                updated_image["objects"].append(updated_image_object)
+            clean_data.append(updated_image)
+        return clean_data
 
     def convert_object_for_yolo_v3(self, filename="objects.json"):
+        glove_vocab = self.load_glove()
         vg_file = self.path / filename
         yolo_file = self.path / "yolo_objects"
         id_to_object_file = self.path / "yolo_object_to_id"
@@ -98,30 +193,38 @@ class VisualGenomeTools:
                             y_max = image_object["y"] + image_object["h"]
                             words = image_object["names"][0].split(" ")
                             for word in words:
-                                if word in dataset_vocab:
-                                    # si le mot est déjà dans le vocabulaire, on increment l'occurence
-                                    (cur_object_id, occurence) = dataset_vocab[word]
-                                    occurence += 1
-                                    dataset_vocab[word] = (cur_object_id, occurence)
-                                else:
-                                    # si le mot n'est pas dans le vocabulaire
-                                    dataset_vocab[word] = (object_id, 1)
-                                    cur_object_id = object_id
-                                    object_id += 1
-                                object_string = '{},{},{},{},{}'.format(x_min, y_min, x_max, y_max, cur_object_id)
-                                image_annotation = '{} {}'.format(image_annotation, object_string)
+                                if word in glove_vocab:
+                                    if word in dataset_vocab:
+                                        # si le mot est déjà dans le vocabulaire, on increment l'occurence
+                                        (cur_object_id, occurence) = dataset_vocab[word]
+                                        occurence += 1
+                                        dataset_vocab[word] = (cur_object_id, occurence)
+                                    else:
+                                        # si le mot n'est pas dans le vocabulaire
+                                        dataset_vocab[word] = (object_id, 1)
+                                        cur_object_id = object_id
+                                        object_id += 1
+                                    object_string = '{},{},{},{},{}'.format(x_min, y_min, x_max, y_max, cur_object_id)
+                                    image_annotation = '{} {}'.format(image_annotation, object_string)
                         image_annotation = '{}\n'.format(image_annotation)
                         yf.write(image_annotation)
         print(len(dataset_vocab))
         object_to_id_list = ["" for i in range(0, len(dataset_vocab))]
         single_words = 0
+        short_words = 0
         for key, value in dataset_vocab.items():
-            if value[1] < 5:
+            if value[1] < 6:
                 print(key, " : ", value[1])
-                single_words +=1
+                single_words += 1
+
             object_to_id_list[value[0]] = key
         print("Number of few occurent word: ", single_words)
 
+        for key, value in dataset_vocab.items():
+            if len(key) < 3:
+                print(key)
+                short_words +=1
+        print("Number of less than 3 characters words: ", short_words)
         with open(str(id_to_object_file), 'w+') as itof:
             for object_name in object_to_id_list:
                 itof.write('{}\n'.format(object_name))
@@ -151,7 +254,7 @@ class VisualGenomeTools:
                                 y_max = y_min + 1
                             if x_min >= x_max:
                                 x_max = x_min + 1
-                            object_names = image_object["names"][0].replace('.', ' ').replace('/', ' ').replace(';', ' ').replace('\'', ' ').replace('\"', ' ').replace(',', ' ').replace('\0', ' ').split(' ')
+                            object_names = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower()).split(' ')
                             for object_name in object_names :
                                 if object_name not in object_to_id:
                                     object_to_id[object_name] = object_id
@@ -167,14 +270,6 @@ class VisualGenomeTools:
         with open(str(id_to_object_file), 'w+') as itof:
             for key, value in object_to_id.items():
                 itof.write('{},{}\n'.format(str(key), str(value)))
-
-    def check_for_plural(self, object_name, object_to_id):
-        print("not implemented yet")
-        return False
-
-    def check_for_typo(self, object_name, object_to_id):
-        print("not implemented yet")
-        return False
 
     def display_image_bb(self, filename="yolo_objects", id_mapping="yolo_object_to_id"):
         yolo_file = self.path / filename
