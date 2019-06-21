@@ -11,12 +11,13 @@ class VisualGenomeTools:
     def __init__(self, load_glove=False, path_to_visual_genome_folder=Path('.')):
         self.path = path_to_visual_genome_folder
         if load_glove:
-            self.vocab = self.load_glove()
+            self.glove_vocab = self.load_glove()
+        self.dataset_vocab = {}
 
     def get_vocab(self):
-        if not self.vocab :
+        if not self.glove_vocab:
             self.load_glove()
-        return self.vocab
+        return self.glove_vocab
 
     def clean_visual_genome_data(self, filename="objects.json"):
         vg_file = self.path / filename
@@ -34,12 +35,12 @@ class VisualGenomeTools:
             #dataset_vocab = self.remove_plural(dataset_vocab)
             clean_data = self.clean_dataset_with_dataset_vocab(data, dataset_vocab)
             #clean_data = self.split_vocabulary(clean_data, dataset_vocab)
-            print("final vocab word count:", dataset_vocab)
+            print("final vocab word count:", len(dataset_vocab))
             print(len(clean_data))
-        with open(str(vg_clean_file), 'w+') as vgf:
-            json.dump(clean_data, vgf)
-        with open(str(vg_clean_vocab), 'w+') as vgf:
-            json.dump(dataset_vocab, vgf)
+            with open(str(vg_clean_file), 'w+') as vgf:
+                json.dump(clean_data, vgf)
+            with open(str(vg_clean_vocab), 'w+') as vgf:
+                json.dump(dataset_vocab, vgf)
 
     def remove_plural(self, dataset_vocab):
         print("len dataset vocab before reduction of plural words :", len(dataset_vocab))
@@ -68,7 +69,7 @@ class VisualGenomeTools:
         print("len dataset vocab before reduction :", len(dataset_vocab))
         new_dataset_vocab = {}
         for vocab in dataset_vocab:
-            if len(vocab) > 2:
+            if len(vocab) > 1:
                 new_dataset_vocab[vocab] = dataset_vocab[vocab]
         print("len dataset vocab after reduction :", len(new_dataset_vocab))
         return new_dataset_vocab
@@ -90,22 +91,22 @@ class VisualGenomeTools:
             updated_image = image.copy()
             updated_image["objects"] = []
             for image_object in image["objects"]:
-                # print(image_object)
+                print(image_object)
                 updated_image_object = image_object.copy()
                 text = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower())
                 # print(image_object["names"][0])
                 words = text.split(" ")
-                clean_words = ""
+                clean_words = []
                 #print(words)
                 for word in words:
                     if word in dataset_vocab:
-                        clean_words += word
-                    #else :
-                        #print("word not in vocab:", word)
-                    updated_image_object["names"] = clean_words
+                        clean_words.append(word)
+                    else :
+                        print("word not in vocab:", word)
+                    updated_image_object["names"] = [" ".join(clean_words)]
                     updated_image["objects"].append(updated_image_object)
+                print(updated_image_object["objects"])
             data_with_dataset_vocab.append(updated_image)
-
         return data_with_dataset_vocab
 
     def generate_dataset_vocab(self, data):
@@ -185,7 +186,7 @@ class VisualGenomeTools:
                         y_min = image_object["y"]
                         x_max = image_object["x"] + image_object["w"]
                         y_max = image_object["y"] + image_object["h"]
-                        words = image_object["names"].split(" ")
+                        words = image_object["names"][0].split(" ")
                         for word in words:
                             # si le mot est déjà dans le vocabulaire, on increment l'occurence
                             if word in dataset_vocab:
@@ -258,7 +259,7 @@ class VisualGenomeTools:
         with open(str(yolo_file), 'r') as f:
             data = f.readline()
             data = data.split()
-            image_file = self.path / "images" / "VG_100K" / '{}.jpg'.format(data[0])
+            image_file = data[0]
             print(image_file)
             img = cv2.imread( str(image_file), cv2.IMREAD_UNCHANGED)
             for i in range(1, len(data)):
