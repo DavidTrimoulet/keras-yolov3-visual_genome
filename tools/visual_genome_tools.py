@@ -15,7 +15,7 @@ class VisualGenomeTools:
         self.dataset_vocab = {}
 
     def get_vocab(self):
-        if not self.glove_vocab:
+        if not self.glove_vocab :
             self.load_glove()
         return self.glove_vocab
 
@@ -23,24 +23,23 @@ class VisualGenomeTools:
         vg_file = self.path / filename
         vg_clean_file = self.path / "clean_objects.json"
         vg_clean_vocab = self.path / "vg_vocab"
-        clean_data = []
         #Dictionnary with { word : (id, occurence) }
         with open(str(vg_file), 'r') as vgf:
             data = json.load(vgf)
             print(len(data))
-            dataset_vocab = self.generate_dataset_vocab(data)
-            dataset_vocab = self.remove_not_in_glove_words(dataset_vocab)
-            dataset_vocab = self.remove_less_used_words(dataset_vocab)
-            dataset_vocab = self.remove_single_character_from_vocab(dataset_vocab)
-            #dataset_vocab = self.remove_plural(dataset_vocab)
-            clean_data = self.clean_dataset_with_dataset_vocab(data, dataset_vocab)
+            self.dataset_vocab = self.generate_dataset_vocab(data)
+            self.dataset_vocab = self.remove_not_in_glove_words(self.dataset_vocab)
+            self.dataset_vocab = self.remove_less_used_words(self.dataset_vocab)
+            self.dataset_vocab = self.remove_single_character_from_vocab(self.dataset_vocab)
+            self.dataset_vocab = self.remove_plural(self.dataset_vocab)
+            clean_data = self.clean_dataset_with_dataset_vocab(data)
             #clean_data = self.split_vocabulary(clean_data, dataset_vocab)
-            print("final vocab word count:", len(dataset_vocab))
+            print("final vocab word count:", len(self.dataset_vocab))
             print(len(clean_data))
             with open(str(vg_clean_file), 'w+') as vgf:
                 json.dump(clean_data, vgf)
             with open(str(vg_clean_vocab), 'w+') as vgf:
-                json.dump(dataset_vocab, vgf)
+                json.dump(self.dataset_vocab, vgf)
 
     def remove_plural(self, dataset_vocab):
         print("len dataset vocab before reduction of plural words :", len(dataset_vocab))
@@ -55,6 +54,19 @@ class VisualGenomeTools:
                 new_dataset_vocab[vocab] = dataset_vocab[vocab]
         print("len dataset vocab after reduction of plural words :", len(new_dataset_vocab))
         return new_dataset_vocab
+
+    def replace_by_singular(self, word):
+        if len(word) > 0:
+            if word[-1] == 's':
+                if word[0:-1] in self.dataset_vocab:
+                    print("replacing ", word, "by", word[0:-1])
+                    return word[0:-1]
+                else:
+                    if len(word) > 2:
+                        if word[-2] == 'e' and word[0:-2] in self.dataset_vocab:
+                            print("replacing ", word, "by", word[0:-2])
+                            return word[0:-2]
+        return word
 
     def remove_less_used_words(self, dataset_vocab, thresold=5):
         print("len dataset vocab before reduction of less used word :", len(dataset_vocab))
@@ -84,14 +96,14 @@ class VisualGenomeTools:
         print("len dataset vocab after reduction with glove vocab  :", len(new_dataset_vocab))
         return new_dataset_vocab
 
-    def clean_dataset_with_dataset_vocab(self, data, dataset_vocab):
+    def clean_dataset_with_dataset_vocab(self, data):
         data_with_dataset_vocab = []
         for image in data:
             # print(image)
             updated_image = image.copy()
             updated_image["objects"] = []
+            print(image["objects"])
             for image_object in image["objects"]:
-                print(image_object)
                 updated_image_object = image_object.copy()
                 text = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower())
                 # print(image_object["names"][0])
@@ -99,13 +111,15 @@ class VisualGenomeTools:
                 clean_words = []
                 #print(words)
                 for word in words:
-                    if word in dataset_vocab:
+                    word = self.replace_by_singular(word)
+                    if word in self.dataset_vocab:
                         clean_words.append(word)
-                    else :
+                    else:
                         print("word not in vocab:", word)
+                if clean_words:
                     updated_image_object["names"] = [" ".join(clean_words)]
                     updated_image["objects"].append(updated_image_object)
-                print(updated_image_object["objects"])
+            print(updated_image["objects"])
             data_with_dataset_vocab.append(updated_image)
         return data_with_dataset_vocab
 
