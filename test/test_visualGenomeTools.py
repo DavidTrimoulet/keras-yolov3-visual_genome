@@ -1,8 +1,6 @@
 from unittest import TestCase
 from tools import visual_genome_tools
 from pathlib import Path
-from numpy import dot
-from numpy.linalg import norm
 
 
 class TestVisualGenomeTools(TestCase):
@@ -30,30 +28,6 @@ class TestVisualGenomeTools(TestCase):
     def test_load_glove(self):
         self.assertEqual(len(self.vgt.get_glove_vocab()), 400000)
 
-    def test_glove_similarity(self):
-        glove_vocab = {}
-        p = Path('.')
-        p = p / ".." / ".." / "Visual_Genome"
-        full_path = p / "glove.6B.50d.txt"
-        with open(str(full_path), 'r') as f:
-            for line in f:
-                splitted_line = line.replace('\n', '').split(' ')
-                glove_vocab[splitted_line[0]] = splitted_line[1:]
-        print(len(glove_vocab))
-        base_word = ""
-        while base_word not in glove_vocab :
-            input("Which word to you want to get the closest words ?")
-        base_word_vector = glove_vocab[base_word]
-        distances_with_base_word = {}
-        for word in glove_vocab:
-            #print(glove_vocab[word], base_word_vector)
-            a = [float(x) for x in glove_vocab[word]]
-            b = [float(x) for x in base_word_vector]
-            distances_with_base_word[word] = 1 - dot(a, b)/(norm(a)*norm(b))
-            print(distances_with_base_word[word])
-        list_of_distances_with_base_word = [(value, key) for value, key in distances_with_base_word.items()]
-        list_of_distances_with_base_word.sort(key=lambda tup: tup[1])
-        print(list_of_distances_with_base_word[0:20])
 
 
 
