@@ -33,11 +33,20 @@ class VisualGenomeTools:
         self.remove_less_used_words()
         self.remove_single_character_from_vocab()
         self.remove_plural()
+        self.re_indexed_vocab()
         # self.split_vocabulary()
         self.clean_dataset_with_dataset_vocab()
         print("final vocab word count:", len(self.dataset_vocab))
         print(len(self.data))
         # self.save_clean_data_and_vocab(output_data, output_vocab)
+
+    def re_indexed_vocab(self):
+        re_indexed_vocab = {}
+        index = 0
+        for key, value in self.get_dataset_vocab().items():
+            re_indexed_vocab[key] = index
+            index += 1
+        self.dataset_vocab = re_indexed_vocab
 
     def save_clean_data_and_vocab(self, output_data, output_vocab):
         vg_clean_file = self.path / output_data
@@ -194,7 +203,6 @@ class VisualGenomeTools:
     def convert_object_for_yolo_v3(self):
         yolo_file = self.path / "yolo_objects"
         id_to_object_file = self.path / "yolo_object_to_id"
-        object_id = 0
         with open(str(yolo_file), 'w+') as yf:
             for image in self.data:
                 image_id = image["image_id"]
@@ -207,14 +215,7 @@ class VisualGenomeTools:
                     y_max = image_object["y"] + image_object["h"]
                     words = image_object["names"][0].split(" ")
                     for word in words:
-                        # si le mot est déjà dans le vocabulaire, on increment l'occurence
-                        if word in self.dataset_vocab:
-                            cur_object_id = self.dataset_vocab[word]
-                        else:
-                            # si le mot n'est pas dans le vocabulaire
-                            self.dataset_vocab[word] = object_id
-                            cur_object_id = object_id
-                            object_id += 1
+                        cur_object_id = self.dataset_vocab[word]
                         object_string = '{},{},{},{},{}'.format(x_min, y_min, x_max, y_max, cur_object_id)
                         image_annotation = '{} {}'.format(image_annotation, object_string)
             image_annotation = '{}\n'.format(image_annotation)
