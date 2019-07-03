@@ -206,7 +206,7 @@ class VisualGenomeTools:
         with open(str(yolo_file), 'w+') as yf:
             for image in self.data:
                 image_id = image["image_id"]
-                images_path = self.path / "images" / "VG_100K"
+                images_path = Path() / ".." / "Visual_Genome" / "images" / "VG_100K"
                 image_annotation = '{}/{}.jpg'.format(images_path, image_id)
                 for image_object in image["objects"]:
                     x_min = image_object["x"]
@@ -218,8 +218,8 @@ class VisualGenomeTools:
                         cur_object_id = self.dataset_vocab[word]
                         object_string = '{},{},{},{},{}'.format(x_min, y_min, x_max, y_max, cur_object_id)
                         image_annotation = '{} {}'.format(image_annotation, object_string)
-            image_annotation = '{}\n'.format(image_annotation)
-            yf.write(image_annotation)
+                image_annotation = '{}\n'.format(image_annotation)
+                yf.write(image_annotation)
 
         print("final vocab length :", len(self.dataset_vocab))
         with open(str(id_to_object_file), 'w+') as itof:
