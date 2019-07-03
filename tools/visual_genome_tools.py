@@ -8,14 +8,21 @@ import re
 
 class VisualGenomeTools:
 
-    def __init__(self, path_to_visual_genome_folder=Path('.'), load_glove=False, filename="objects.json"):
+    def __init__(self, path_to_visual_genome_folder=Path('.'), load_glove=False):
         self.path = path_to_visual_genome_folder
-        self.vg_file = self.path / filename
-        with open(str(self.vg_file), 'r') as vgf:
-            self.data = json.load(vgf)
+        self.data = []
         if load_glove:
             self.glove_vocab = self.load_glove()
-        self.dataset_vocab = self.generate_dataset_vocab()
+        self.dataset_vocab = {}
+
+    def set_visual_genome_data(self, data):
+        self.data = data
+
+    def load_visual_genome_data(self, filename="objects.json"):
+        vg_file = self.path / filename
+        with open(str(vg_file), 'r') as vgf:
+            self.data = json.load(vgf)
+        print("data loaded : ", len(self.data), "elements")
 
     def get_glove_vocab(self):
         if not self.glove_vocab:
@@ -24,10 +31,10 @@ class VisualGenomeTools:
 
     def get_dataset_vocab(self):
         if not self.dataset_vocab:
-            self.generate_dataset_vocab()
+            self.generate_vg_object_vocab()
         return self.dataset_vocab
 
-    def clean_visual_genome_data(self):
+    def clean_visual_genome_object_data(self):
         print(len(self.data))
         self.remove_not_in_glove_words()
         self.remove_less_used_words()
@@ -138,7 +145,7 @@ class VisualGenomeTools:
             data_with_dataset_vocab.append(updated_image)
         self.data = data_with_dataset_vocab
 
-    def generate_dataset_vocab(self):
+    def generate_vg_object_vocab(self):
         # Dictionary with { word :  occurence }
         dataset_vocab = {}
         for image in self.data:
@@ -153,7 +160,24 @@ class VisualGenomeTools:
                     else:
                         # si le mot n'est pas dans le vocabulaire
                         dataset_vocab[word] = 1
-        return dataset_vocab
+        self.dataset_vocab = dataset_vocab
+
+    def generate_vg_region_vocab(self):
+        # Dictionary with { word :  occurence }
+        dataset_vocab = {}
+        for image in self.data:
+            # print(image)
+            for image_region in image["regions"]:
+                text = re.sub('[^A-Za-z]+', ' ', image_region["phrase"][0].lower())
+                words = text.split(" ")
+                for word in words:
+                    if word in dataset_vocab:
+                        # si le mot est déjà dans le vocabulaire, on increment l'occurence
+                        dataset_vocab[word] += 1
+                    else:
+                        # si le mot n'est pas dans le vocabulaire
+                        dataset_vocab[word] = 1
+        self.dataset_vocab = dataset_vocab
 
     def set_vocab_to_the_n_most_used_word(self, n=1000):
         sorted_by_occurence_vocab = [(k, self.get_dataset_vocab()[k]) for k in sorted( self.get_dataset_vocab(), key=self.get_dataset_vocab().get, reverse=True)]
@@ -210,9 +234,9 @@ class VisualGenomeTools:
         self.data = split_word_data
 
     def convert_object_for_yolo_v3(self):
-        yolo_file = self.path / "yolo_objects"
+        yolo_object_file = self.path / "yolo_objects"
         id_to_object_file = self.path / "yolo_object_to_id"
-        with open(str(yolo_file), 'w+') as yf:
+        with open(str(yolo_object_file), 'w+') as yf:
             for image in self.data:
                 image_id = image["image_id"]
                 images_path = Path() / ".." / "Visual_Genome" / "images" / "VG_100K"
@@ -234,6 +258,25 @@ class VisualGenomeTools:
         with open(str(id_to_object_file), 'w+') as itof:
             for object_name in self.dataset_vocab:
                 itof.write('{}\n'.format(object_name))
+
+    def convert_region_for_captionner(self):
+        yolo_region_file = self.path / "captioner_pairs"
+        with open(str(yolo_region_file), 'w+') as yf:
+            for image in self.data:
+                print(image)
+                for region in image["regions"]:
+                    image_id = region["image_id"]
+                    images_path = Path() / ".." / "Visual_Genome" / "images" / "VG_100K"
+                    image_annotation = '{}/{}.jpg'.format(images_path, image_id)
+                    x_min = region["x"]
+                    y_min = region["y"]
+                    w = region["width"]
+                    h = region["height"]
+                    sentence = region["phrase"]
+                    region_string = '{},{},{},{},{}'.format(x_min, y_min, h, w, sentence)
+                    image_annotation = '{} {}'.format(image_annotation, region_string)
+                    image_annotation = '{}\n'.format(image_annotation)
+                    yf.write(image_annotation)
 
     def convert_object_for_retina(self, filename="objects.json"):
         densecap_file = self.path / filename
