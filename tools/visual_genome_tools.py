@@ -24,21 +24,21 @@ class VisualGenomeTools:
 
     def get_dataset_vocab(self):
         if not self.dataset_vocab:
-            self.load_dataset_vocab()
+            self.generate_dataset_vocab()
         return self.dataset_vocab
 
-    def clean_visual_genome_data(self, output_data="clean_objects.json", output_vocab="vg_vocab"):
+    def clean_visual_genome_data(self):
         print(len(self.data))
         self.remove_not_in_glove_words()
         self.remove_less_used_words()
         self.remove_single_character_from_vocab()
         self.remove_plural()
+        self.set_vocab_to_the_n_most_used_word()
         self.re_indexed_vocab()
         # self.split_vocabulary()
         self.clean_dataset_with_dataset_vocab()
         print("final vocab word count:", len(self.dataset_vocab))
         print(len(self.data))
-        # self.save_clean_data_and_vocab(output_data, output_vocab)
 
     def re_indexed_vocab(self):
         re_indexed_vocab = {}
@@ -154,6 +154,15 @@ class VisualGenomeTools:
                         # si le mot n'est pas dans le vocabulaire
                         dataset_vocab[word] = 1
         return dataset_vocab
+
+    def set_vocab_to_the_n_most_used_word(self, n=1000):
+        sorted_by_occurence_vocab = [(k, self.get_dataset_vocab()[k]) for k in sorted( self.get_dataset_vocab(), key=self.get_dataset_vocab().get, reverse=True)]
+        print("len dataset vocab before reduction with glove vocab :", len(self.dataset_vocab))
+        new_dataset_vocab = {}
+        for i in range(n):
+            new_dataset_vocab[sorted_by_occurence_vocab[i][0]] = sorted_by_occurence_vocab[i][1]
+        print("len dataset vocab after reduction with glove vocab  :", len(new_dataset_vocab))
+        self.dataset_vocab = new_dataset_vocab
 
     def split_vocabulary(self):
         split_word_data = []
