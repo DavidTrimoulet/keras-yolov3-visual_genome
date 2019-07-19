@@ -1,5 +1,5 @@
 # tools to convert visual genome data to yoloV3
-
+import random
 from pathlib import Path
 import json
 import cv2
@@ -30,8 +30,6 @@ class VisualGenomeTools:
         return self.glove_vocab
 
     def get_dataset_vocab(self):
-        if not self.dataset_vocab:
-            self.generate_vg_object_vocab()
         return self.dataset_vocab
 
     def clean_visual_genome_object_data(self):
@@ -55,11 +53,11 @@ class VisualGenomeTools:
             index += 1
         self.dataset_vocab = re_indexed_vocab
 
-    def save_clean_data_and_vocab(self, output_data, output_vocab):
+    def save_data_and_vocab(self, output_data, output_vocab):
         vg_clean_file = self.path / output_data
         vg_clean_vocab = self.path / output_vocab
         with open(str(vg_clean_file), 'w+') as vgf:
-            json.dump(self.clean_data, vgf)
+            json.dump(self.data, vgf)
         with open(str(vg_clean_vocab), 'w+') as vgf:
             json.dump(self.dataset_vocab, vgf)
 
@@ -168,7 +166,7 @@ class VisualGenomeTools:
         for image in self.data:
             # print(image)
             for image_region in image["regions"]:
-                text = re.sub('[^A-Za-z]+', ' ', image_region["phrase"][0].lower())
+                text = re.sub('[^A-Za-z]+', ' ', image_region["phrase"].lower())
                 words = text.split(" ")
                 for word in words:
                     if word in dataset_vocab:
@@ -177,61 +175,17 @@ class VisualGenomeTools:
                     else:
                         # si le mot n'est pas dans le vocabulaire
                         dataset_vocab[word] = 1
+        print("generated dataset vocab length :", len(dataset_vocab))
         self.dataset_vocab = dataset_vocab
 
     def set_vocab_to_the_n_most_used_word(self, n=1000):
-        sorted_by_occurence_vocab = [(k, self.get_dataset_vocab()[k]) for k in sorted( self.get_dataset_vocab(), key=self.get_dataset_vocab().get, reverse=True)]
-        print("len dataset vocab before reduction with glove vocab :", len(self.dataset_vocab))
+        sorted_by_occurrence_vocab = [(k, self.get_dataset_vocab()[k]) for k in sorted( self.get_dataset_vocab(), key=self.get_dataset_vocab().get, reverse=True)]
+        print("len dataset vocab before reduction to", n, "elements:", len(self.dataset_vocab))
         new_dataset_vocab = {}
         for i in range(n):
-            new_dataset_vocab[sorted_by_occurence_vocab[i][0]] = sorted_by_occurence_vocab[i][1]
-        print("len dataset vocab after reduction with glove vocab  :", len(new_dataset_vocab))
+            new_dataset_vocab[sorted_by_occurrence_vocab[i][0]] = sorted_by_occurrence_vocab[i][1]
+        print("len dataset vocab after reduction to", n, "elements:", len(new_dataset_vocab))
         self.dataset_vocab = new_dataset_vocab
-
-    def split_vocabulary(self):
-        split_word_data = []
-        for image in self.data:
-            # print(image)
-            updated_image = image.copy()
-            updated_image["objects"] = []
-            for image_object in image["objects"]:
-                print("new image")
-                # print(image_object)
-                updated_image_object = image_object.copy()
-                text = re.sub('[^A-Za-z]+', ' ', image_object["names"][0].lower())
-                # print(image_object["names"][0])
-                words = text.split(" ")
-                new_words = []
-                for word in words:
-                    cur_splitting = [word]
-                    is_splitted = True
-                    # tant qu'on a subdivisé le mot
-                    next_split = []
-                    while (is_splitted):
-                        #print(cur_splitting)
-                        is_splitted = False
-                        # pour tous les mot du vocabulaire
-                        #print(len(dataset_vocab.keys()))
-                        for vocab_word in self.dataset_vocab:
-                            #print(" vocab_word: ", vocab_word)
-                            # pour tous les mot du découpage en cours
-                            for split in cur_splitting:
-                                #print("split:", split)
-                                # si le découpage en cours contient un mot du vocabulaire
-                                if vocab_word in split and vocab_word != split:
-                                    if split.replace(vocab_word, '') in self.dataset_vocab:
-                                        print("Split and vocab word are:", split.replace(vocab_word, ''), ",", vocab_word)
-                                        next_split.append(split.replace(vocab_word, ''))
-                                        next_split.append(vocab_word)
-                        # check if is composed of
-                            if next_split :
-                                cur_splitting = next_split
-                    new_words += cur_splitting
-                print("previous word :", word, ", splitted words:", new_words)
-                updated_image_object["names"] = new_words
-                updated_image["objects"].append(updated_image_object)
-            split_word_data.append(updated_image)
-        self.data = split_word_data
 
     def convert_object_for_yolo_v3(self):
         yolo_object_file = self.path / "yolo_objects"
@@ -260,11 +214,16 @@ class VisualGenomeTools:
                 itof.write('{}\n'.format(object_name))
 
     def convert_region_for_captionner(self):
-        yolo_region_file = self.path / "captioner_pairs"
+        yolo_region_file = self.path / "region_pairs"
+        region_vocab = self.path / "region_vocab"
+        number_of_region = 0
+        number_of_valid_region = 0
         with open(str(yolo_region_file), 'w+') as yf:
+            yf.write("image_path,caption\n")
             for image in self.data:
-                print(image)
+                #print(image)
                 for region in image["regions"]:
+                    number_of_region += 1
                     image_id = region["image_id"]
                     images_path = Path() / ".." / "Visual_Genome" / "images" / "VG_100K"
                     image_annotation = '{}/{}.jpg'.format(images_path, image_id)
@@ -272,11 +231,24 @@ class VisualGenomeTools:
                     y_min = region["y"]
                     w = region["width"]
                     h = region["height"]
-                    sentence = region["phrase"]
-                    region_string = '{},{},{},{},{}'.format(x_min, y_min, h, w, sentence)
-                    image_annotation = '{} {}'.format(image_annotation, region_string)
+                    sentence = region["phrase"].lower().replace(',', '')
+                    region_string = '{} {} {} {} {}'.format(x_min, y_min, h, w, sentence)
+                    image_annotation = '{},{}'.format(image_annotation, region_string)
                     image_annotation = '{}\n'.format(image_annotation)
-                    yf.write(image_annotation)
+                    all_word_in_vocab = True
+                    text = re.sub('[^A-Za-z]+', ' ', sentence)
+                    words = text.split(" ")
+                    for word in words :
+                        if word not in self.dataset_vocab:
+                            all_word_in_vocab = False
+                    if all_word_in_vocab:
+                        number_of_valid_region += 1
+                        yf.write(image_annotation)
+        print("Number of region:", number_of_region, ", number of valid region:", number_of_valid_region)
+        print("final vocab length :", len(self.dataset_vocab))
+        with open(str(region_vocab), 'w+') as itof:
+            for object_name in self.dataset_vocab:
+                itof.write('{}\n'.format(object_name))
 
     def convert_object_for_retina(self, filename="objects.json"):
         densecap_file = self.path / filename
@@ -351,3 +323,45 @@ class VisualGenomeTools:
                 splitted_line = line.replace('\n', '').split(' ')
                 vocab[splitted_line[0]] = splitted_line[1:]
         return vocab
+
+    def convert_pairs_for_seq2seq(self, filename="region_pairs", input_train_filename="input_train", output_train_filename="output_train", input_dev_filename="input_dev", output_dev_filename="output_dev", input_test_filename="input_test", output_test_filename="output_test", ):
+        file_path = self.path / filename
+        input_train_filepath = self.path / input_train_filename
+        output_train_filepath = self.path / output_train_filename
+        input_dev_filepath = self.path / input_dev_filename
+        output_dev_filepath = self.path / output_dev_filename
+        input_test_filepath = self.path / input_test_filename
+        output_test_filepath = self.path / output_test_filename
+        input_data = []
+        output_data = []
+        with open(file_path, 'r') as fp:
+            data = fp.readlines()
+            for line in data:
+                values = line.split(",")
+                input_data.append(values[0])
+                output_data.append(values[1:])
+        n_pairs = len(data)
+        train_size = int(0.8 * n_pairs)
+        dev_and_test_size = int(0.1 * n_pairs)
+        print("pairs =", n_pairs, ", train =", train_size, ", dev =", dev_and_test_size)
+        print("generating training set")
+        self.save_dataset_part_to_file(input_data, input_train_filepath, output_data, output_train_filepath, train_size)
+        print("generating dev set")
+        self.save_dataset_part_to_file(input_data, input_dev_filepath,
+                                       output_data, output_dev_filepath, dev_and_test_size)
+        print("generating test set")
+        self.save_dataset_part_to_file(input_data, input_test_filepath,
+                                       output_data, output_test_filepath, dev_and_test_size)
+        print(len(input_data), len(output_data))
+
+    @staticmethod
+    def save_dataset_part_to_file(input_data, input_train_filepath,
+                                  output_data, output_train_filepath, train_size):
+        with open(input_train_filepath, 'w+') as itf:
+            with open(output_train_filepath, 'w+') as otf:
+                data_size = len(input_data)
+                for i in range(train_size):
+                    val = random.randint(0, data_size)
+                    itf.write(input_data.pop(val))
+                    otf.write(" ".join(output_data.pop(val)))
+                    data_size -= 1

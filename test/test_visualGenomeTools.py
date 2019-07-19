@@ -26,7 +26,10 @@ class TestVisualGenomeTools(TestCase):
     def test_convert_region_cap(self):
         self.vgt.load_visual_genome_data(filename="region_descriptions.json")
         self.vgt.generate_vg_region_vocab()
+        self.vgt.remove_single_character_from_vocab()
+        self.vgt.remove_not_in_glove_words()
         print(len(self.vgt.get_dataset_vocab()))
+        self.vgt.set_vocab_to_the_n_most_used_word(1000)
         self.vgt.convert_region_for_captionner()
 
     def test_convert_object_retina(self):
@@ -35,8 +38,6 @@ class TestVisualGenomeTools(TestCase):
 
     def test_load_glove(self):
         self.assertEqual(len(self.vgt.get_glove_vocab()), 400000)
-
-
 
 
 
